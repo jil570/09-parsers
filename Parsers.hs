@@ -17,7 +17,11 @@ get = P $ \s -> case s of
   [] -> Nothing
 
 oneDigit :: Parser Int
-oneDigit = undefined
+oneDigit = P $ \s -> case s of
+  (c : cs) -> case readMaybe [c] :: Maybe Int of
+    Just n -> Just (n, cs)
+    Nothing -> Nothing
+  [] -> Nothing
 
 oneOp :: Parser (Int -> Int)
 oneOp = P $ \s -> case s of
@@ -26,7 +30,9 @@ oneOp = P $ \s -> case s of
   _ -> Nothing
 
 satisfy :: (Char -> Bool) -> Parser Char
-satisfy f = undefined
+satisfy f = P $ \s -> case s of
+  (c : cs) -> if f c then Just (c, cs) else Nothing
+  [] -> Nothing
 
 --    SPOILER SPACE
 --     |
@@ -67,7 +73,9 @@ eof = P $ \s -> case s of
 
 instance Functor Parser where
   fmap :: (a -> b) -> Parser a -> Parser b
-  fmap = undefined
+  fmap f a = P $ \s -> do
+    (c, cs) <- doParse a s
+    return (f c, cs)
 
 alphaChar, digitChar :: Parser Char
 alphaChar = satisfy isAlpha
@@ -80,7 +88,7 @@ oneDigit' = cvt <$> digitChar -- fmap!
     cvt c = ord c - ord '0'
 
 char :: Char -> Parser Char
-char c = undefined
+char c = satisfy (== c)
 
 twoChar0 :: Parser (Char, Char)
 twoChar0 = P $ \s -> do
@@ -89,7 +97,10 @@ twoChar0 = P $ \s -> do
   return ((c1, c2), cs')
 
 pairP0 :: Parser a -> Parser b -> Parser (a, b)
-pairP0 = undefined
+pairP0 a b = P $ \s -> do
+  (c1, cs') <- doParse a s
+  (c2, cs) <- doParse b cs'
+  return ((c1, c2), cs)
 
 twoChar1 :: Parser (Char, Char)
 twoChar1 = pairP0 get get
@@ -136,14 +147,16 @@ parenP :: Parser a -> Parser a
 parenP p = char '(' *> p <* char ')'
 
 bindP :: Parser a -> (a -> Parser b) -> Parser b
-bindP = undefined
+bindP p f = P $ \s -> do
+  (a, s') <- doParse p s
+  doParse (f a) s'
 
 string :: String -> Parser String
 string "" = pure ""
 string (x : xs) = (:) <$> char x <*> string xs
 
 string' :: String -> Parser String
-string' = foldr undefined undefined
+string' = undefined
 
 grabn :: Int -> Parser String
 grabn n = if n <= 0 then pure "" else (:) <$> get <*> grabn (n -1)
