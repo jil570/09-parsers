@@ -73,9 +73,10 @@ eof = P $ \s -> case s of
 
 instance Functor Parser where
   fmap :: (a -> b) -> Parser a -> Parser b
-  fmap f a = P $ \s -> do
-    (c, cs) <- doParse a s
-    return (f c, cs)
+  -- fmap f a = P $ \s -> do
+  --   (c, cs) <- doParse a s
+  --   return (f c, cs)
+  fmap f pa = pure f <*> pa
 
 alphaChar, digitChar :: Parser Char
 alphaChar = satisfy isAlpha
@@ -146,6 +147,13 @@ tripleP = liftA3 (,,)
 parenP :: Parser a -> Parser a
 parenP p = char '(' *> p <* char ')'
 
+rightTie :: Applicative f => f a -> f b -> f b
+rightTie pa pb = pure (flip const) <*> pa <*> pb
+
+leftTie :: Applicative f => f b -> f a -> f b
+-- leftTie pa pb = pure const <*> pa <*> pb
+leftTie pa pb = const <$> pa <*> pb
+
 bindP :: Parser a -> (a -> Parser b) -> Parser b
 bindP p f = P $ \s -> do
   (a, s') <- doParse p s
@@ -161,6 +169,8 @@ string' = undefined
 grabn :: Int -> Parser String
 grabn n = if n <= 0 then pure "" else (:) <$> get <*> grabn (n -1)
 
+-- | Both parsers try to run at the same time return first if it has the value
+-- | otherwise choose second
 chooseFirstP :: Parser a -> Parser a -> Parser a
 p1 `chooseFirstP` p2 = P $ \s -> doParse p1 s `firstJust` doParse p2 s
 
@@ -187,8 +197,9 @@ instance Alternative Parser where
 oneNat :: Parser Int
 oneNat = fmap read (some digitChar) -- know that read will succeed because input is all digits
 
+-- | ***
 sepBy :: Parser a -> Parser b -> Parser [a]
-sepBy p sep = undefined
+sepBy p sep = (:) <$> p <*> many (sep *> p) <|> pure []
 
 intOp :: Parser (Int -> Int -> Int)
 intOp = plus <|> minus <|> times <|> divide
